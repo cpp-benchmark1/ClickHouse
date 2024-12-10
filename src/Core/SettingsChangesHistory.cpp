@@ -15,6 +15,7 @@ namespace ErrorCodes
 }
 
 ClickHouseVersion::ClickHouseVersion(std::string_view version)
+ClickHouseVersion::ClickHouseVersion(const String & version)
 {
     Strings split;
     boost::split(split, version, [](char c){ return c == '.'; });
@@ -104,6 +105,34 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             /// Release closed. Please use 25.1
             {"allow_experimental_database_iceberg", false, false, "New setting."},
             {"shared_merge_tree_sync_parts_on_partition_operations", 1, 1, "New setting. By default parts are always synchronized"},
+ClickHouseVersion::ClickHouseVersion(const char * version)
+    : ClickHouseVersion(String(version))
+{
+}
+
+String ClickHouseVersion::toString() const
+{
+    String version = std::to_string(components[0]);
+    for (size_t i = 1; i < components.size(); ++i)
+        version += "." + std::to_string(components[i]);
+
+    return version;
+}
+
+// clang-format off
+/// History of settings changes that controls some backward incompatible changes
+/// across all ClickHouse versions. It maps ClickHouse version to settings changes that were done
+/// in this version. This history contains both changes to existing settings and newly added settings.
+/// Settings changes is a vector of structs
+///     {setting_name, previous_value, new_value, reason}.
+/// For newly added setting choose the most appropriate previous_value (for example, if new setting
+/// controls new feature and it's 'true' by default, use 'false' as previous_value).
+/// It's used to implement `compatibility` setting (see https://github.com/ClickHouse/ClickHouse/issues/35972)
+/// Note: please check if the key already exists to prevent duplicate entries.
+static std::initializer_list<std::pair<ClickHouseVersion, SettingsChangesHistory::SettingsChanges>> settings_changes_history_initializer =
+{
+    {"24.12",
+        {
             {"query_plan_join_swap_table", "false", "auto", "New setting. Right table was always chosen before."},
             {"max_size_to_preallocate_for_aggregation", 100'000'000, 1'000'000'000'000, "Enable optimisation for bigger tables."},
             {"max_size_to_preallocate_for_joins", 100'000'000, 1'000'000'000'000, "Enable optimisation for bigger tables."},
@@ -121,6 +150,15 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             /// Release closed. Please use 25.1
         });
         addSettingsChanges(settings_changes_history, "24.11",
+            {"object_storage_remove_recursive_file_limit", 0, 1000, "Added new setting to limit number of files stored in memory while removing from object storage. Zero value means unlimited."},
+            {"max_bytes_ratio_before_external_sort", 0., 0., "New setting."},
+            {"use_async_executor_for_materialized_views", false, false, "New setting."},
+            {"composed_data_type_output_format_mode", "default", "default", "New setting"},
+            {"http_response_headers", "", "", "New setting."},
+            {"parallel_replicas_index_analysis_only_on_coordinator", true, true, "Index analysis done only on replica-coordinator and skipped on other replicas. Effective only with enabled parallel_replicas_local_plan"}, // enabling it was moved to 24.10
+        }
+    },
+    {"24.11",
         {
             {"validate_mutation_query", false, true, "New setting to validate mutation queries by default."},
             {"enable_job_stack_trace", false, true, "Enable by default collecting stack traces from job's scheduling."},
@@ -152,6 +190,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"enable_json_type", false, false, "Add alias to allow_experimental_json_type"},
         });
         addSettingsChanges(settings_changes_history, "24.10",
+        }
+    },
+    {"24.10",
         {
             {"query_metric_log_interval", 0, -1, "New setting."},
             {"enforce_strict_identifier_format", false, false, "New setting."},
@@ -181,6 +222,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"distributed_cache_log_mode", "on_error", "on_error", "A setting for ClickHouse Cloud"},
             {"distributed_cache_fetch_metrics_only_from_current_az", 1, 1, "A setting for ClickHouse Cloud"},
             {"distributed_cache_connect_max_tries", 20, 20, "A setting for ClickHouse Cloud"},
+            {"distributed_cache_connect_max_tries", 100, 100, "A setting for ClickHouse Cloud"},
             {"distributed_cache_receive_response_wait_milliseconds", 60000, 60000, "A setting for ClickHouse Cloud"},
             {"distributed_cache_receive_timeout_milliseconds", 10000, 10000, "A setting for ClickHouse Cloud"},
             {"distributed_cache_wait_connection_from_pool_milliseconds", 100, 100, "A setting for ClickHouse Cloud"},
@@ -200,6 +242,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"parallel_replicas_index_analysis_only_on_coordinator", false, true, "Index analysis done only on replica-coordinator and skipped on other replicas. Effective only with enabled parallel_replicas_local_plan"},
         });
         addSettingsChanges(settings_changes_history, "24.9",
+        }
+    },
+    {"24.9",
         {
             {"output_format_orc_dictionary_key_size_threshold", 0.0, 0.0, "For a string column in ORC output format, if the number of distinct values is greater than this fraction of the total number of non-null rows, turn off dictionary encoding. Otherwise dictionary encoding is enabled"},
             {"input_format_json_empty_as_default", false, false, "Added new setting to allow to treat empty fields in JSON input as default values."},
@@ -219,6 +264,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"min_free_disk_ratio_to_perform_insert", 0.0, 0.0, "Maintain some free disk space bytes expressed as ratio to total disk space from inserts while still allowing for temporary writing."},
         });
         addSettingsChanges(settings_changes_history, "24.8",
+        }
+    },
+    {"24.8",
         {
             {"rows_before_aggregation", false, false, "Provide exact value for rows_before_aggregation statistic, represents the number of rows read before aggregation"},
             {"restore_replace_external_table_functions_to_null", false, false, "New setting."},
@@ -239,6 +287,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"input_format_try_infer_datetimes_only_datetime64", true, false, "Allow to infer DateTime instead of DateTime64 in data formats"},
         });
         addSettingsChanges(settings_changes_history, "24.7",
+        }
+    },
+    {"24.7",
         {
             {"output_format_parquet_write_page_index", false, true, "Add a possibility to write page index into parquet files."},
             {"output_format_binary_encode_types_in_binary_format", false, false, "Added new setting to allow to write type names in binary format in RowBinaryWithNamesAndTypes output format"},
@@ -263,6 +314,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"postgresql_connection_pool_retries", 2, 2, "Allow to control the number of retries in PostgreSQL connection pool."}
         });
         addSettingsChanges(settings_changes_history, "24.6",
+        }
+    },
+    {"24.6",
         {
             {"materialize_skip_indexes_on_insert", true, true, "Added new setting to allow to disable materialization of skip indexes on insert"},
             {"materialize_statistics_on_insert", true, true, "Added new setting to allow to disable materialization of statistics on insert"},
@@ -295,6 +349,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"input_format_csv_try_infer_strings_from_quoted_tuples", true, true, "A new way of how interpret tuples in CSV format was added."},
         });
         addSettingsChanges(settings_changes_history, "24.5",
+        }
+    },
+    {"24.5",
         {
             {"allow_deprecated_error_prone_window_functions", true, false, "Allow usage of deprecated error prone window functions (neighbor, runningAccumulate, runningDifferenceStartingWithFirstValue, runningDifference)"},
             {"allow_experimental_join_condition", false, false, "Support join with inequal conditions which involve columns from both left and right table. e.g. t1.y < t2.y."},
@@ -311,6 +368,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"allow_archive_path_syntax", false, true, "Added new setting to allow disabling archive path syntax."},
         });
         addSettingsChanges(settings_changes_history, "24.4",
+        }
+    },
+    {"24.4",
         {
             {"input_format_json_throw_on_bad_escape_sequence", true, true, "Allow to save JSON strings with bad escape sequences"},
             {"max_parsing_threads", 0, 0, "Add a separate setting to control number of threads in parallel parsing from files"},
@@ -327,6 +387,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"query_plan_convert_outer_join_to_inner_join", false, true, "Allow to convert OUTER JOIN to INNER JOIN if filter after JOIN always filters default values"},
         });
         addSettingsChanges(settings_changes_history, "24.3",
+        }
+    },
+    {"24.3",
         {
             {"s3_connect_timeout_ms", 1000, 1000, "Introduce new dedicated setting for s3 connection timeout"},
             {"allow_experimental_shared_merge_tree", false, true, "The setting is obsolete"},
@@ -372,6 +435,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"input_format_csv_try_infer_strings_from_quoted_tuples", true, true, "A new way of how interpret tuples in CSV format was added."},
         });
         addSettingsChanges(settings_changes_history, "24.2",
+        }
+    },
+    {"24.2",
         {
             {"allow_suspicious_variant_types", true, false, "Don't allow creating Variant type with suspicious variants by default"},
             {"validate_experimental_and_suspicious_types_inside_nested_types", false, true, "Validate usage of experimental and suspicious types inside nested types"},
@@ -403,6 +469,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"mysql_map_fixed_string_to_text_in_show_columns", false, true, "Reduce the configuration effort to connect ClickHouse with BI tools."},
         });
         addSettingsChanges(settings_changes_history, "24.1",
+        }
+    },
+    {"24.1",
         {
             {"print_pretty_type_names", false, true, "Better user experience."},
             {"input_format_json_read_bools_as_strings", false, true, "Allow to read bools as strings in JSON formats by default"},
@@ -429,6 +498,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"split_intersecting_parts_ranges_into_layers_final", true, true, "Allow to split intersecting parts ranges into layers during FINAL optimization"}
         });
         addSettingsChanges(settings_changes_history, "23.12",
+        }
+    },
+    {"23.12",
         {
             {"allow_suspicious_ttl_expressions", true, false, "It is a new setting, and in previous versions the behavior was equivalent to allowing."},
             {"input_format_parquet_allow_missing_columns", false, true, "Allow missing columns in Parquet files by default"},
@@ -440,6 +512,14 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"parsedatetime_parse_without_leading_zeros", false, true, "Improved compatibility with MySQL DATE_FORMAT/STR_TO_DATE"}
         });
         addSettingsChanges(settings_changes_history, "23.9",
+        }
+    },
+    {"23.11",
+        {
+            {"parsedatetime_parse_without_leading_zeros", false, true, "Improved compatibility with MySQL DATE_FORMAT/STR_TO_DATE"}
+        }
+    },
+    {"23.9",
         {
             {"optimize_group_by_constant_keys", false, true, "Optimize group by constant keys by default"},
             {"input_format_json_try_infer_named_tuples_from_objects", false, true, "Try to infer named Tuples from JSON objects by default"},
@@ -463,6 +543,25 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"http_receive_timeout", 180, 30, "See http_send_timeout."}
         });
         addSettingsChanges(settings_changes_history, "23.5",
+        }
+    },
+    {"23.8",
+        {
+            {"rewrite_count_distinct_if_with_count_distinct_implementation", false, true, "Rewrite countDistinctIf with count_distinct_implementation configuration"}
+        }
+    },
+    {"23.7",
+        {
+            {"function_sleep_max_microseconds_per_block", 0, 3000000, "In previous versions, the maximum sleep time of 3 seconds was applied only for `sleep`, but not for `sleepEachRow` function. In the new version, we introduce this setting. If you set compatibility with the previous versions, we will disable the limit altogether."}
+        }
+    },
+    {"23.6",
+        {
+            {"http_send_timeout", 180, 30, "3 minutes seems crazy long. Note that this is timeout for a single network write call, not for the whole upload operation."},
+            {"http_receive_timeout", 180, 30, "See http_send_timeout."}
+        }
+    },
+    {"23.5",
         {
             {"input_format_parquet_preserve_order", true, false, "Allow Parquet reader to reorder rows for better parallelism."},
             {"parallelize_output_from_storages", false, true, "Allow parallelism when executing queries that read from file/url/s3/etc. This may reorder rows."},
@@ -470,6 +569,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"output_format_parquet_compliant_nested_types", false, true, "Change an internal field name in output Parquet file schema."}
         });
         addSettingsChanges(settings_changes_history, "23.4",
+        }
+    },
+    {"23.4",
         {
             {"allow_suspicious_indices", true, false, "If true, index can defined with identical expressions"},
             {"allow_nonconst_timezone_arguments", true, false, "Allow non-const timezone arguments in certain time-related functions like toTimeZone(), fromUnixTimestamp*(), snowflakeToDateTime*()."},
@@ -480,6 +582,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"formatdatetime_parsedatetime_m_is_month_name", false, true, "Improved compatibility with MySQL DATE_FORMAT/STR_TO_DATE"}
         });
         addSettingsChanges(settings_changes_history, "23.3",
+        }
+    },
+    {"23.3",
         {
             {"output_format_parquet_version", "1.0", "2.latest", "Use latest Parquet format version for output format"},
             {"input_format_json_ignore_unknown_keys_in_named_tuple", false, true, "Improve parsing JSON objects as named tuples"},
@@ -490,6 +595,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"async_query_sending_for_remote", false, true, "Create connections and send query async across shards"}
         });
         addSettingsChanges(settings_changes_history, "23.2",
+        }
+    },
+    {"23.2",
         {
             {"output_format_parquet_fixed_string_as_fixed_byte_array", false, true, "Use Parquet FIXED_LENGTH_BYTE_ARRAY type for FixedString by default"},
             {"output_format_arrow_fixed_string_as_fixed_byte_array", false, true, "Use Arrow FIXED_SIZE_BINARY type for FixedString by default"},
@@ -498,6 +606,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"insert_keeper_max_retries", 0, 20, "Enable reconnections to Keeper on INSERT, improve reliability"}
         });
         addSettingsChanges(settings_changes_history, "23.1",
+        }
+    },
+    {"23.1",
         {
             {"input_format_json_read_objects_as_strings", 0, 1, "Enable reading nested json objects as strings while object type is experimental"},
             {"input_format_json_defaults_for_missing_elements_in_named_tuple", false, true, "Allow missing elements in JSON objects while reading named tuples by default"},
@@ -507,6 +618,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"query_plan_remove_redundant_sorting", false, true, "Remove redundant sorting in query plan. For example, sorting steps related to ORDER BY clauses in subqueries"}
         });
         addSettingsChanges(settings_changes_history, "22.12",
+        }
+    },
+    {"22.12",
         {
             {"max_size_to_preallocate_for_aggregation", 10'000'000, 100'000'000, "This optimizes performance"},
             {"query_plan_aggregation_in_order", 0, 1, "Enable some refactoring around query plan"},
@@ -521,6 +635,19 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"force_grouping_standard_compatibility", false, true, "Make GROUPING function output the same as in SQL standard and other DBMS"}
         });
         addSettingsChanges(settings_changes_history, "22.7",
+        }
+    },
+    {"22.11",
+        {
+            {"use_structure_from_insertion_table_in_table_functions", 0, 2, "Improve using structure from insertion table in table functions"}
+        }
+    },
+    {"22.9",
+        {
+            {"force_grouping_standard_compatibility", false, true, "Make GROUPING function output the same as in SQL standard and other DBMS"}
+        }
+    },
+    {"22.7",
         {
             {"cross_to_inner_join_rewrite", 1, 2, "Force rewrite comma join to inner"},
             {"enable_positional_arguments", false, true, "Enable positional arguments feature by default"},
@@ -562,6 +689,52 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"async_socket_for_remote", false, true, "Fix all problems and turn on asynchronous reads from socket for remote queries by default again"}
         });
         addSettingsChanges(settings_changes_history, "21.3",
+        }
+    },
+    {"22.6",
+        {
+            {"output_format_json_named_tuples_as_objects", false, true, "Allow to serialize named tuples as JSON objects in JSON formats by default"},
+            {"input_format_skip_unknown_fields", false, true, "Optimize reading subset of columns for some input formats"}
+        }
+    },
+    {"22.5",
+        {
+            {"memory_overcommit_ratio_denominator", 0, 1073741824, "Enable memory overcommit feature by default"},
+            {"memory_overcommit_ratio_denominator_for_user", 0, 1073741824, "Enable memory overcommit feature by default"}
+        }
+    },
+    {"22.4",
+        {
+            {"allow_settings_after_format_in_insert", true, false, "Do not allow SETTINGS after FORMAT for INSERT queries because ClickHouse interpret SETTINGS as some values, which is misleading"}
+        }
+    },
+    {"22.3",
+        {
+            {"cast_ipv4_ipv6_default_on_conversion_error", true, false, "Make functions cast(value, 'IPv4') and cast(value, 'IPv6') behave same as toIPv4 and toIPv6 functions"}
+        }
+    },
+    {"21.12",
+        {
+            {"stream_like_engine_allow_direct_select", true, false, "Do not allow direct select for Kafka/RabbitMQ/FileLog by default"}
+        }
+    },
+    {"21.9",
+        {
+            {"output_format_decimal_trailing_zeros", true, false, "Do not output trailing zeros in text representation of Decimal types by default for better looking output"},
+            {"use_hedged_requests", false, true, "Enable Hedged Requests feature by default"}
+        }
+    },
+    {"21.7",
+        {
+            {"legacy_column_name_of_tuple_literal", true, false, "Add this setting only for compatibility reasons. It makes sense to set to 'true', while doing rolling update of cluster from version lower than 21.7 to higher"}
+        }
+    },
+    {"21.5",
+        {
+            {"async_socket_for_remote", false, true, "Fix all problems and turn on asynchronous reads from socket for remote queries by default again"}
+        }
+    },
+    {"21.3",
         {
             {"async_socket_for_remote", true, false, "Turn off asynchronous reads from socket for remote queries because of some problems"},
             {"optimize_normalize_count_variants", false, true, "Rewrite aggregate functions that semantically equals to count() as count() by default"},
@@ -572,6 +745,14 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"enable_global_with_statement", false, true, "Propagate WITH statements to UNION queries and all subqueries by default"}
         });
         addSettingsChanges(settings_changes_history, "21.1",
+        }
+    },
+    {"21.2",
+        {
+            {"enable_global_with_statement", false, true, "Propagate WITH statements to UNION queries and all subqueries by default"}
+        }
+    },
+    {"21.1",
         {
             {"insert_quorum_parallel", false, true, "Use parallel quorum inserts by default. It is significantly more convenient to use than sequential quorum inserts"},
             {"input_format_null_as_default", false, true, "Allow to insert NULL as default for input formats by default"},
@@ -680,6 +861,122 @@ const VersionToSettingsChangesMap & getMergeTreeSettingsChangesHistory()
             {"deduplicate_merge_projection_mode", "ignore", "throw", "Do not allow to create inconsistent projection"}
         });
     });
+        }
+    },
+    {"20.10",
+        {
+            {"format_regexp_escaping_rule", "Escaped", "Raw", "Use Raw as default escaping rule for Regexp format to male the behaviour more like to what users expect"}
+        }
+    },
+    {"20.7",
+        {
+            {"show_table_uuid_in_table_create_query_if_not_nil", true, false, "Stop showing  UID of the table in its CREATE query for Engine=Atomic"}
+        }
+    },
+    {"20.5",
+        {
+            {"input_format_with_names_use_header", false, true, "Enable using header with names for formats with WithNames/WithNamesAndTypes suffixes"},
+            {"allow_suspicious_codecs", true, false, "Don't allow to specify meaningless compression codecs"}
+        }
+    },
+    {"20.4",
+        {
+            {"validate_polygons", false, true, "Throw exception if polygon is invalid in function pointInPolygon by default instead of returning possibly wrong results"}
+        }
+    },
+    {"19.18",
+        {
+            {"enable_scalar_subquery_optimization", false, true, "Prevent scalar subqueries from (de)serializing large scalar values and possibly avoid running the same subquery more than once"}
+        }
+    },
+    {"19.14",
+        {
+            {"any_join_distinct_right_table_keys", true, false, "Disable ANY RIGHT and ANY FULL JOINs by default to avoid inconsistency"}
+        }
+    },
+    {"19.12",
+        {
+            {"input_format_defaults_for_omitted_fields", false, true, "Enable calculation of complex default expressions for omitted fields for some input formats, because it should be the expected behaviour"}
+        }
+    },
+    {"19.5",
+        {
+            {"max_partitions_per_insert_block", 0, 100, "Add a limit for the number of partitions in one block"}
+        }
+    },
+    {"18.12.17",
+        {
+            {"enable_optimize_predicate_expression", 0, 1, "Optimize predicates to subqueries by default"}
+        }
+    },
+};
+
+static std::initializer_list<std::pair<ClickHouseVersion, SettingsChangesHistory::SettingsChanges>> merge_tree_settings_changes_history_initializer =
+{
+    {"24.12",
+        {
+            {"enforce_index_structure_match_on_partition_manipulation", true, false, "Add new setting to allow attach when source table's projections and secondary indices is a subset of those in the target table."},
+            {"use_primary_key_cache", false, false, "New setting"},
+            {"prewarm_primary_key_cache", false, false, "New setting"},
+            {"min_bytes_to_prewarm_caches", 0, 0, "New setting"},
+        }
+    },
+    {"24.11",
+        {
+        }
+    },
+    {"24.10",
+        {
+        }
+    },
+    {"24.9",
+        {
+        }
+    },
+    {"24.8",
+        {
+            {"deduplicate_merge_projection_mode", "ignore", "throw", "Do not allow to create inconsistent projection"}
+        }
+    },
+};
+
+static void initSettingsChangesHistory(
+    std::map<ClickHouseVersion, SettingsChangesHistory::SettingsChanges> & settings_changes_history,
+    std::once_flag & initialized_flag,
+    std::initializer_list<std::pair<ClickHouseVersion, SettingsChangesHistory::SettingsChanges>> const & initializer
+)
+{
+    std::call_once(initialized_flag, [&]()
+    {
+        for (const auto & setting_change : initializer)
+        {
+            /// Disallow duplicate keys in the settings changes history. Example:
+            ///     {"21.2", {{"some_setting_1", false, true, "[...]"}}},
+            ///     [...]
+            ///     {"21.2", {{"some_setting_2", false, true, "[...]"}}},
+            /// As std::set has unique keys, one of the entries would be overwritten.
+            if (settings_changes_history.contains(setting_change.first))
+                throw Exception{ErrorCodes::LOGICAL_ERROR, "Detected duplicate version '{}'", setting_change.first.toString()};
+
+            settings_changes_history[setting_change.first] = setting_change.second;
+        }
+    });
+}
+
+const std::map<ClickHouseVersion, SettingsChangesHistory::SettingsChanges> & getSettingsChangesHistory()
+{
+    static std::map<ClickHouseVersion, SettingsChangesHistory::SettingsChanges> settings_changes_history;
+    static std::once_flag initialized_flag;
+    initSettingsChangesHistory(settings_changes_history, initialized_flag, settings_changes_history_initializer);
+
+    return settings_changes_history;
+}
+
+const std::map<ClickHouseVersion, SettingsChangesHistory::SettingsChanges> & getMergeTreeSettingsChangesHistory()
+{
+    static std::map<ClickHouseVersion, SettingsChangesHistory::SettingsChanges> merge_tree_settings_changes_history;
+    static std::once_flag initialized_flag;
+    initSettingsChangesHistory(merge_tree_settings_changes_history, initialized_flag, merge_tree_settings_changes_history_initializer);
 
     return merge_tree_settings_changes_history;
 }
