@@ -32,9 +32,15 @@ jobs:
     - if: matrix.build-mode == 'manual'
       shell: bash
       run: |
-        sudo apt-get update
         sudo apt-get install git cmake ccache python3 ninja-build nasm yasm gawk lsb-release wget software-properties-common gnupg
         sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+        rustup toolchain install nightly-2024-12-01
+        rustup default nightly-2024-12-01
+        rustup component add rust-src
+        cd ClickHouse
+        mkdir build
+        cmake -S . -B build
+        cmake --build build --target clickhouse
     - name: Free disk space
       run: |
           sudo docker rmi $(docker image ls -aq) >/dev/null 2>&1 || true
