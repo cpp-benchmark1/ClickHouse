@@ -29,17 +29,6 @@ jobs:
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
-    - if: matrix.build-mode == 'manual'
-      shell: bash
-      run: |
-        sudo apt-get install git cmake ccache python3 ninja-build nasm yasm gawk lsb-release wget software-properties-common gnupg
-        sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
-        rustup toolchain install nightly-2024-12-01
-        rustup default nightly-2024-12-01
-        rustup component add rust-src
-        mkdir build
-        cmake -S . -B build
-        cmake --build build --target clickhouse
     - name: Free disk space
       run: |
           sudo docker rmi $(docker image ls -aq) >/dev/null 2>&1 || true
@@ -63,6 +52,17 @@ jobs:
           sudo apt-get purge '~n ^dotnet' -f -y  || true
           sudo apt-get autoremove -y || true
           sudo apt-get autoclean -y || true
+    - if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        sudo apt-get install git cmake ccache python3 ninja-build nasm yasm gawk lsb-release wget software-properties-common gnupg
+        sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+        rustup toolchain install nightly-2024-12-01
+        rustup default nightly-2024-12-01
+        rustup component add rust-src
+        mkdir build
+        cmake -S . -B build
+        cmake --build build --target clickhouse
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
